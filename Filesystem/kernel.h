@@ -9,6 +9,8 @@
 #define FILE_ENTRY_SECTOR_NUM_SIZE 26
 #define FILE_ENTRY_IN_SECTOR 16
 
+#define MAX_PRGM_SIZE 13312
+
 struct file_entry
 {
     char filename[6];

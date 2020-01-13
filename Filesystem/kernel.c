@@ -20,6 +20,8 @@ int div(int a, int b);
 void readSector(char *buffer, int sector);
 void handleInterrupt21(int ax, int bx, int cx, int dx);
 void readFile(char *filename, char *buffer);
+void executeProgram(char *name, int segment);
+void terminate();
 
 void main()
 {
@@ -43,12 +45,16 @@ void main()
     interrupt(0x21, 1, line, 0, 0);
     interrupt(0x21, 0, line, 0, 0);
 */
+    /*
     char buffer[13312];
 
     makeInterrupt21();
 
-    interrupt(0x21, 3, "bigmes", buffer, 0); /* read the file into buffer */
-    interrupt(0x21, 0, buffer, 0, 0);        /* print out the file */
+    interrupt(0x21, 3, "bigmes", buffer, 0); 
+    interrupt(0x21, 0, buffer, 0, 0);        
+    */
+    makeInterrupt21();
+    interrupt(0x21, 4, "tstpr2\0", 0x2000, 0);
 
     while (1)
         ;
@@ -248,9 +254,16 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
     {
         readFile(bx, cx);
     }
+    else if (ax == 4)
+    {
+        executeProgram(bx, cx);
+    }
+    else if(ax==5){
+        terminate();
+    }
     else
     {
-        printString("handleInterrup21: Operation not supported.");
+        // printString("handleInterrup21: Operation not supported.");
     }
 }
 
@@ -278,4 +291,23 @@ void readFile(char *filename, char *buffer)
             break;
         }
     }
+}
+
+void executeProgram(char *name, int segment)
+{
+    char program_buffer[MAX_PRGM_SIZE];
+    int i;
+
+    readFile(name, program_buffer);
+
+    for (i = 0; i < MAX_PRGM_SIZE; i++)
+    {
+        putInMemory(segment, 0x0000 + i, program_buffer[i]);
+    }
+
+    launchProgram(segment);
+}
+
+void terminate(){
+    while(1);
 }
