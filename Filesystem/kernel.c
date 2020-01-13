@@ -3,6 +3,14 @@ Team: 2-8
 Members: Jerry Zheng, Jocelynn Cheesebourough 
 */
 
+#include "kernel.h"
+
+int strlen(char *s);
+void *memcpy(void *dest, void *src, int n);
+int memcmp(void *s1, void *s2, int n);
+
+void printNum(int num);
+
 void helloWorld();
 void printChar(char c);
 void printString(char *s);
@@ -11,9 +19,11 @@ int mod(int a, int b);
 int div(int a, int b);
 void readSector(char *buffer, int sector);
 void handleInterrupt21(int ax, int bx, int cx, int dx);
+void readFile(char *filename, char *buffer);
 
 void main()
 {
+    /*
     char line[80];
     char buffer[512];
 
@@ -29,13 +39,68 @@ void main()
     printString(buffer);
 
     makeInterrupt21();
-    /* interrupt(0x21,0,0,0,0); */
 
     interrupt(0x21, 1, line, 0, 0);
     interrupt(0x21, 0, line, 0, 0);
+*/
+    char buffer[13312];
+
+    makeInterrupt21();
+
+    interrupt(0x21, 3, "bigmes", buffer, 0); /* read the file into buffer */
+    interrupt(0x21, 0, buffer, 0, 0);        /* print out the file */
 
     while (1)
         ;
+}
+
+/* Modified from: https://clc-wiki.net/wiki/strlen */
+int strlen(char *s)
+{
+    int i;
+    for (i = 0; s[i] != '\0'; i++)
+        ;
+    return i;
+}
+
+/* Modified from: https://clc-wiki.net/wiki/memcpy */
+void *memcpy(void *dest, void *src, int n)
+{
+    char *dp = dest;
+    char *sp = src;
+    while (n--)
+        *dp++ = *sp++;
+    return dest;
+}
+
+/* Modified from: https://clc-wiki.net/wiki/memcmp */
+int memcmp(void *s1, void *s2, int n)
+{
+    unsigned char *p1 = s1, *p2 = s2;
+    while (n--)
+        if (*p1 != *p2)
+            return *p1 - *p2;
+        else
+            p1++, p2++;
+    return 0;
+}
+
+void printNum(int num)
+{
+    int digit[5];
+    int i;
+    int len;
+
+    len = 0;
+    while (num > 0)
+    {
+        digit[len++] = mod(num, 10);
+        num = div(num, 10);
+    }
+    for (i = len - 1; i >= 0; i--)
+    {
+        printChar(digit[i] + '0');
+    }
 }
 
 void helloWorld()
@@ -66,6 +131,10 @@ void printString(char *s)
 {
     while (*s != '\0')
     {
+        if (*s == '\n')
+        {
+            printChar('\r');
+        }
         printChar(*s);
         s++;
     }
@@ -175,8 +244,38 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
     {
         readSector(bx, cx);
     }
+    else if (ax == 3)
+    {
+        readFile(bx, cx);
+    }
     else
     {
         printString("handleInterrup21: Operation not supported.");
+    }
+}
+
+void readFile(char *filename, char *buffer)
+{
+    char sector_buffer[SECTOR_SIZE];
+    struct file_entry *cur_file_entry;
+    char *cur_sector_num;
+    int filename_len;
+
+    /* Load the directory sector into a 512 byte character array using readSector. */
+    readSector(sector_buffer, DIR_SECTOR);
+
+    /* Go through the directory trying to match the file name.  If you do not find it, return. */
+    filename_len = strlen(filename);
+    for (cur_file_entry = sector_buffer; cur_file_entry->filename[0] != 0x0 && cur_file_entry - (struct file_entry *)sector_buffer < FILE_ENTRY_IN_SECTOR; cur_file_entry++)
+    {
+        if (memcmp(cur_file_entry->filename, filename, filename_len) == 0)
+        {
+            for (cur_sector_num = cur_file_entry->sector_num; cur_sector_num != 0x0 && cur_sector_num - cur_file_entry->sector_num < FILE_ENTRY_SECTOR_NUM_SIZE; cur_sector_num++)
+            {
+                readSector(buffer, *cur_sector_num);
+                buffer += SECTOR_SIZE;
+            }
+            break;
+        }
     }
 }
