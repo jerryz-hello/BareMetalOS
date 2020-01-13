@@ -25,39 +25,16 @@ void terminate();
 
 void main()
 {
-    /*
-    char line[80];
-    char buffer[512];
-
-    helloWorld();
-
-    printString("World Hello!\r\n");
-
-    printString("Enter a line: \0");
-    readString(line);
-    printString(line);
-
-    readSector(buffer, 30);
-    printString(buffer);
+    char shell[6];
+    shell[0] = 's';
+    shell[1] = 'h';
+    shell[2] = 'e';
+    shell[3] = 'l';
+    shell[4] = 'l';
+    shell[5] = '\0';
 
     makeInterrupt21();
-
-    interrupt(0x21, 1, line, 0, 0);
-    interrupt(0x21, 0, line, 0, 0);
-*/
-    /*
-    char buffer[13312];
-
-    makeInterrupt21();
-
-    interrupt(0x21, 3, "bigmes", buffer, 0); 
-    interrupt(0x21, 0, buffer, 0, 0);        
-    */
-    makeInterrupt21();
-    interrupt(0x21, 4, "tstpr2\0", 0x2000, 0);
-
-    while (1)
-        ;
+    interrupt(0x21, 4, shell, 0x2000, 0);
 }
 
 /* Modified from: https://clc-wiki.net/wiki/strlen */
@@ -184,7 +161,7 @@ void readString(char *line)
     line[i + 1] = 0x0;
 
     /* correctly prints a newline */
-    printString("\r\n");
+    printString("\n");
 
     return;
 }
@@ -258,7 +235,8 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
     {
         executeProgram(bx, cx);
     }
-    else if(ax==5){
+    else if (ax == 5)
+    {
         terminate();
     }
     else
@@ -308,6 +286,14 @@ void executeProgram(char *name, int segment)
     launchProgram(segment);
 }
 
-void terminate(){
-    while(1);
+void terminate()
+{
+    char shell[6];
+    shell[0] = 's';
+    shell[1] = 'h';
+    shell[2] = 'e';
+    shell[3] = 'l';
+    shell[4] = 'l';
+    shell[5] = '\0';
+    interrupt(0x21, 4, shell, 0x2000, 0);
 }

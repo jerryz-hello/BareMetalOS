@@ -3,7 +3,7 @@
 # Members: Jerry Zheng, Jocelynn Cheesebourough
 #
 
-all: floppya.img 
+all: floppya.img loadFile shell
 
 kernel.o: kernel.c kernel.h
 	bcc -ansi -c -o kernel.o kernel.c
@@ -17,14 +17,30 @@ kernel: kernel.o kernel_asm.o
 bootload: bootload.asm
 	nasm bootload.asm
 
-floppya.img: bootload kernel 	
+shell.o: shell.c shell.h
+	bcc -ansi -c -o shell.o shell.c
+
+lib_asm.o: lib.asm
+	as86 lib.asm -o lib_asm.o 
+
+shell: shell.o lib_asm.o
+	ld86 -o shell -d shell.o lib_asm.o 
+
+loadFile: loadFile.o
+	gcc -o loadFile loadFile.o
+
+loadFile.o: loadFile.c
+	gcc -c loadFile.c
+
+floppya.img: bootload kernel shell	
 	dd if=/dev/zero of=floppya.img bs=512 count=2880
 	dd if=map.img of=floppya.img bs=512 count=1 seek=1 conv=notrunc
 	dd if=dir.img of=floppya.img bs=512 count=1 seek=2 conv=notrunc
 	dd if=bootload of=floppya.img bs=512 count=1 conv=notrunc
 	dd if=kernel of=floppya.img bs=512 conv=notrunc seek=3
+
 run: 
 	qemu-system-i386 -fda floppya.img -device isa-debug-exit,iobase=0xf4,iosize=0x04 -boot order=a &
 
 clean: 
-	rm -rf *.o kernel bootload floppya.img
+	rm -rf *.o kernel bootload floppya.img loadFile shell
