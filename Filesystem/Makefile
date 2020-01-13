@@ -17,7 +17,7 @@ kernel: kernel.o kernel_asm.o
 bootload: bootload.asm
 	nasm bootload.asm
 
-shell.o: shell.c shell.h
+shell.o: shell.c shell.h kernel.h
 	bcc -ansi -c -o shell.o shell.c
 
 lib_asm.o: lib.asm

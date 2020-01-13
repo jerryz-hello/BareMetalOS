@@ -26,6 +26,7 @@ void terminate();
 void main()
 {
     char shell[6];
+
     shell[0] = 's';
     shell[1] = 'h';
     shell[2] = 'e';
