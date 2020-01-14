@@ -9,7 +9,7 @@ int strlen(char *s);
 void *memcpy(void *dest, void *src, int n);
 int memcmp(void *s1, void *s2, int n);
 
-void printNum(int num);
+void printNumber(short number);
 
 void helloWorld();
 void printChar(char c);
@@ -18,6 +18,9 @@ void readString(char *line);
 int mod(int a, int b);
 int div(int a, int b);
 void readSector(char *buffer, int sector);
+void writeSector(char *buffer, int sector);
+void writeFile(char *name,
+               char *buffer, int numberOfSectors);
 void handleInterrupt21(int ax, int bx, int cx, int dx);
 void readFile(char *filename, char *buffer);
 void executeProgram(char *name, int segment);
@@ -26,7 +29,6 @@ void terminate();
 void main()
 {
     char shell[6];
-
     shell[0] = 's';
     shell[1] = 'h';
     shell[2] = 'e';
@@ -69,22 +71,39 @@ int memcmp(void *s1, void *s2, int n)
     return 0;
 }
 
-void printNum(int num)
+void printNumber(short number)
 {
-    int digit[5];
-    int i;
-    int len;
+    char tmp[7];
+    char output[7];
+    char c;
+    short orig, i, j;
 
-    len = 0;
-    while (num > 0)
+    for (i = 0; i < 7; i++)
     {
-        digit[len++] = mod(num, 10);
-        num = div(num, 10);
+        output[i] = 0;
+        tmp[i] = 0;
     }
-    for (i = len - 1; i >= 0; i--)
+
+    i = 0;
+    orig = number;
+    if (number < 0)
+        number = -number;
+
+    do
     {
-        printChar(digit[i] + '0');
+        tmp[i++] = mod(number, 10) + '0';
+    } while ((number = div(number, 10)) > 0);
+
+    if (orig < 0)
+        tmp[i++] = '-';
+
+    i--;
+    for (j = 0; i >= 0; i--, j++)
+    {
+        output[j] = tmp[i];
     }
+
+    printString(output);
 }
 
 void helloWorld()
@@ -115,8 +134,7 @@ void printString(char *s)
 {
     while (*s != '\0')
     {
-        if (*s == '\n')
-        {
+        if (*s=='\n'){
             printChar('\r');
         }
         printChar(*s);
@@ -128,6 +146,7 @@ void readString(char *line)
 {
     int i, lineLength, ax;
     char charRead, backSpace, enter;
+
     lineLength = 80;
     i = 0;
     ax = 0;
@@ -214,6 +233,108 @@ void readSector(char *buffer, int sector)
     interrupt(0x13, ax, bx, cx, dx);
 }
 
+void writeSector(char *buffer, int sector)
+{
+    int relative_sector, head, track;
+    char ah, al, ch, cl, dh, dl;
+    int ax, bx, cx, dx;
+
+    relative_sector = mod(sector, 18) + 1;
+    head = mod(div(sector, 18), 2);
+    track = div(sector, 36);
+
+    ah = 0x3;
+    al = 0x1;
+    bx = buffer;
+    ch = track;
+    cl = relative_sector;
+    dh = head;
+    dl = 0;
+
+    ax = 256 * ah + al;
+    cx = 256 * ch + cl;
+    dx = 256 * dh + dl;
+
+    interrupt(0x13, ax, bx, cx, dx);
+}
+
+void writeFile(char *name,
+               char *buffer, int numberOfSectors)
+{
+    char map_sector[SECTOR_SIZE];
+    char dir_sector[SECTOR_SIZE];
+    char *map_ptr;
+    struct file_entry *dir_ptr;
+    char dir_num;
+    char free_sector_num[RECORDS_IN_MAP_SECTOR];
+    int free_sector_count;
+    char sector_num;
+    int write_sector_count;
+    int filename_len;
+    int i;
+
+    readSector(map_sector, MAP_SECTOR);
+    readSector(dir_sector, DIR_SECTOR);
+    for (dir_ptr = dir_sector; dir_ptr->filename[0] != 0x00 && dir_ptr - (struct file_entry *)dir_sector < FILE_ENTRY_IN_SECTOR; dir_ptr++)
+        ;
+    dir_num = dir_ptr - (struct file_entry *)dir_sector;
+
+    if (dir_num >= FILE_ENTRY_IN_SECTOR)
+    {
+        return;
+    }
+
+    filename_len = strlen(name);
+    memcpy(dir_ptr->filename, name, filename_len);
+    if (filename_len < 6)
+    {
+        for (i = filename_len; i < FILE_ENTRY_FILENAME_SIZE; i++)
+        {
+            dir_ptr->filename[i] = '\0';
+        }
+    }
+
+    /* find free sectors */
+    free_sector_count = 0;
+    for (map_ptr = map_sector; map_ptr - map_sector < RECORDS_IN_MAP_SECTOR && numberOfSectors > 0; map_ptr++)
+    {
+        if (*map_ptr == 0x00)
+        {
+            sector_num = map_ptr - map_sector;
+            free_sector_num[free_sector_count++] = sector_num;
+        }
+    }
+
+    if (free_sector_count < numberOfSectors)
+    {
+        return;
+    }
+    if (free_sector_count > numberOfSectors)
+    {
+        free_sector_count = numberOfSectors;
+    }
+
+    write_sector_count = 0;
+    for (i = 0; i < free_sector_count; i++)
+    {
+        map_ptr = map_sector + free_sector_num[i];
+        *map_ptr = 0xFF;
+        dir_ptr->sector_num[write_sector_count] = free_sector_num[i];
+        writeSector(buffer, free_sector_num[i]);
+        write_sector_count++;
+        buffer += SECTOR_SIZE;
+    }
+
+    while (write_sector_count < FILE_ENTRY_SECTOR_NUM_SIZE)
+    {
+        dir_ptr->sector_num[write_sector_count] = 0x00;
+        write_sector_count++;
+    }
+
+    writeSector(map_sector, MAP_SECTOR);
+    writeSector(dir_sector, DIR_SECTOR);
+}
+
 void handleInterrupt21(int ax, int bx, int cx, int dx)
 {
     if (ax == 0)
@@ -239,6 +360,14 @@ void handleInterrupt21(int ax, int bx, int cx, int dx)
     else if (ax == 5)
     {
         terminate();
+    }
+    else if (ax == 6)
+    {
+        writeSector(bx, cx);
+    }
+    else if (ax == 8)
+    {
+        writeFile(bx, cx, dx);
     }
     else
     {

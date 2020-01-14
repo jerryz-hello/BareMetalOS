@@ -3,12 +3,19 @@
 
 int strlen(char *s);
 int memcmp(void *s1, void *s2, int n);
+void *memcpy(void *dest, void *src, int n);
 
 void main()
 {
     char line[MAX_LINE_LEN];
     char file_buffer[MAX_PRGM_SIZE];
     char *filename;
+    struct file_entry *cur_file_entry;
+    char sector_buffer[SECTOR_SIZE];
+    char cur_filename[7];
+    char filename1[7];
+    char *filename1_ptr;
+    int filename1_len;
 
     while (1)
     {
@@ -23,13 +30,54 @@ void main()
         {
             for (filename = line + 4; (*filename == ' ' || *filename == '\t') && *filename != '\0'; filename++)
                 ;
-            
+
             /* clear the buffer */
-            file_buffer[0]='\0';
+            file_buffer[0] = '\0';
 
             interrupt(0x21, 3, filename, file_buffer, 0);
 
             interrupt(0x21, 0, file_buffer, 0, 0);
+        }
+        else if (memcmp(line, "execute", 7) == 0)
+        {
+            for (filename = line + 7; (*filename == ' ' || *filename == '\t') && *filename != '\0'; filename++)
+                ;
+            interrupt(0x21, 4, filename, 0x2000, 0);
+        }
+        else if (memcmp(line, "dir", 3) == 0)
+        {
+            interrupt(0x21, 2, sector_buffer, DIR_SECTOR, 0);
+            for (cur_file_entry = sector_buffer; cur_file_entry->filename[0] != 0x0 && cur_file_entry - (struct file_entry *)sector_buffer < FILE_ENTRY_IN_SECTOR; cur_file_entry++)
+            {
+                memcpy(cur_filename, cur_file_entry->filename, FILE_ENTRY_FILENAME_SIZE);
+                cur_filename[FILE_ENTRY_FILENAME_SIZE] = '\0';
+                interrupt(0x21, 0, cur_filename, 0, 0);
+                interrupt(0x21, 0, "\n", 0, 0);
+            }
+        }
+        else if (memcmp(line, "copy", 4) == 0)
+        {
+            for (filename = line + 4; (*filename == ' ' || *filename == '\t') && *filename != '\0'; filename++)
+                ;
+            filename1_ptr = filename;
+            for (; !(*filename == ' ' || *filename == '\t') && *filename != '\0'; filename++)
+                ;
+            filename1_len = filename - filename1_ptr;
+            memcpy(filename1, filename1_ptr, filename1_len);
+            filename1[filename1_len] = '\0';
+
+            interrupt(0x21, 3, filename1, file_buffer, 0);
+
+            for (; (*filename == ' ' || *filename == '\t') && *filename != '\0'; filename++)
+                ;
+            filename1_ptr = filename;
+            for (; !(*filename == ' ' || *filename == '\t') && *filename != '\0'; filename++)
+                ;
+            filename1_len = filename - filename1_ptr;
+            memcpy(filename1, filename1_ptr, filename1_len);
+            filename1[filename1_len] = '\0';
+
+            interrupt(0x21, 8, filename1, file_buffer, 3);
         }
         else
         {
@@ -57,4 +105,14 @@ int strlen(char *s)
     for (i = 0; s[i] != '\0'; i++)
         ;
     return i;
+}
+
+/* Modified from: https://clc-wiki.net/wiki/memcpy */
+void *memcpy(void *dest, void *src, int n)
+{
+    char *dp = dest;
+    char *sp = src;
+    while (n--)
+        *dp++ = *sp++;
+    return dest;
 }
