@@ -1,0 +1,6 @@
+*.o
+bootload
+floppya.img
+kernel
+loadFile
+shell
