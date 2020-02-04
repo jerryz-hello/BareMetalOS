@@ -40,6 +40,9 @@ floppya.img: bootload kernel shell loadFile
 	dd if=kernel of=floppya.img bs=512 conv=notrunc seek=3
 	./loadFile bigmess.txt
 	./loadFile message.txt
+	./loadFile shell
+	./loadFile tstpr2
+	./loadFile tstprg
 	
 run: 
 	qemu-system-i386 -fda floppya.img -device isa-debug-exit,iobase=0xf4,iosize=0x04 -boot order=a &
